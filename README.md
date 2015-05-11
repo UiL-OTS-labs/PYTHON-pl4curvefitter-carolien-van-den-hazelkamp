@@ -1,5 +1,5 @@
 #PL4fitter
-Provides a curve fitting implementation coded in python for a sigmoidal curve that fits the 4PL logistic equation:
+Provides a least-square curve fitting implementation coded in python for a sigmoidal curve that fits the 4PL logistic equation:
 
  `((A-D)/(1.0+((x/C)**B))) + D`
 
