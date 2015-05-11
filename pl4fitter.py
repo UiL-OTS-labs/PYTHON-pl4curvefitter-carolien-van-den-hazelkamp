@@ -1,0 +1,192 @@
+# using http://people.duke.edu/~ccc14/pcfb/analysis.html
+# where x is the concentration, A is the minimum asymptote, B is the steepness, C is the inflection point and D is the maximum asymptote.
+
+import csv, os, re, math, sys
+try:
+	import matplotlib.pyplot as plt
+	from matplotlib.widgets import Button
+except:
+	print "matplotlib library is not installed. Please install this first"
+try:
+	import numpy as np
+	import numpy.random as npr
+except:
+	print "Numpy library is not installed. Please install this first"
+try:
+	from scipy.optimize import leastsq
+except:
+	print "scipy library is not installed. Please install this first"
+
+class valuesWriter():
+
+	writer = ""
+
+	def __init__(self):
+		filename = raw_input("Enter the name of the output file you wish to use. Existing files will be overwritten:\n")
+		self.f = open(filename + ".output", 'w')
+		self.writeHeader()
+
+	def writeHeader(self):
+		headerrow = "PPId;"
+		for i in range(7):
+			headerrow += ("X%d;" %(i+1))
+			headerrow += ("Y%d;" %(i+1))
+		headerrow += "A;B;C;D;Keep/Discard\n"
+		self.f.write(headerrow)
+
+	def shutdown(self):
+		self.f.close()
+
+	def writeRow(self, pp, list1, list2, vals, useful):
+		row = "%s;" %pp
+		for i in range(len(list1)):
+			row += "%d;" %list1[i]
+			row += "%d;" %list2[i]
+		row += "%.2f;%.2f;%.2f;%.2f;%s\n" %(vals['A'], vals['B'], vals['C'], vals['D'],useful)
+		self.f.write(row)
+
+def readfile(name):
+	'''
+	Read the input file.
+	Creates a dictionary with the participants as key
+	and a list of 7 items as value
+	@arg name 	The filename and relative path for the input file
+	@return 	Dictionary of participants and their items
+	'''
+	if not name.lower().endswith('.csv'): 
+		print("The file '%s' does not seem to be a .csv file. Please select a file that ends with '.csv'" %name)
+		exit(1)
+	elif not os.path.isfile(name):
+		print("The file '%s' could not be found. Try again with another file." %name)
+		exit(1)
+	else:
+		print "Now reading file '%s'" %name
+		result = dict()
+		with open(name, 'rb') as data:
+			reader = csv.reader(data, delimiter=';')
+			for line,row in enumerate(reader):
+				if row[0] == "ppid":
+					continue
+				if not row[0] in result:
+					result[row[0]] = list()
+				try:
+					x = int(row[1])
+				except ValueError:
+					continue
+				try:
+					y = row[2].replace(',', '.')
+					y = float(y)
+				except ValueError:
+					print "Warning: missing or faulty value (\'%s\') on line: %d"%(row[2], line)
+					continue
+				result[row[0]].append( (x, y) )
+		return result
+
+def logistic4(x, A, B, C, D):
+    """4PL lgoistic equation."""
+    result = ((A-D)/(1.0+((x/C)**B))) + D
+    return result
+
+def residuals(p, y, x):
+    """Deviations of data from fitted 4PL curve"""
+    A,B,C,D = p
+    err = y-logistic4(x, 0, B, C, D)
+    for index, value in enumerate(err):
+    	if math.isnan(value) or B < 0:
+    		err[index] = 1e8
+    return err
+
+def peval(x, p):
+    """Evaluated value at x with current parameters."""
+    A,B,C,D = p
+    return logistic4(x, A, B, C, D)
+
+def plot(data, sortKeys, index, figure):
+	'''
+	Plots the coordinates for a participant.
+	@arg 	pp 		Participant ID
+	@arg 	coords 	list of coordinates (x = time, y = accurary)
+	'''
+	pp = sortKeys[index]
+	coords = data[pp]
+	list1, list2 = [list(t) for t in zip(*coords)]
+
+	# Convert x and y data to numpy array
+	x = np.asarray(list1)
+	y_meas = np.asarray(list2)
+
+	# Initial guess for parameters
+	p0 = [0, 1, 1, max(y_meas)]
+
+	# Fit equation using least squares optimization
+	plsq = leastsq(residuals, p0, args=(y_meas, x),maxfev=10000)
+
+
+	x_fitted_plot = np.linspace(1e-8,max(x),200)
+
+	# Plot results
+	figure.clear()
+	theplot = plt.plot(x_fitted_plot, peval(x_fitted_plot, plsq[0]),x,y_meas, 'o')
+	plt.xlabel('Time (ms)')
+	plt.ylabel('accurary')
+	plt.title('Least-squares 4PL fit to %s data' %pp)
+	textX = max(x)*0.7
+	textY = max(y_meas)*0.4
+	for i, (param, est) in enumerate(zip('ABCD',plsq[0])):
+	     plt.text(textX, textY-i*0.2, '%s = %.2f' % (param, est))
+	plt.savefig(pp+'.png')
+	plt.show()
+
+
+	vals = dict()
+	for i, (param, est) in enumerate(zip('ABCD',plsq[0])):
+	     vals[param] = est
+	
+	# Ask user how to mark these values
+	saveValues(pp, list1, list2, vals)
+	
+
+
+def selectFile():
+	return raw_input("Enter the name of the source csv file\n")
+
+def saveValues(pp, list1, list2, vals):
+	quest = "Found values: \nA: %.2f\tB: %.2f\tC: %.2f\tD: %.2f\n" %(vals['A'], vals['B'], vals['C'], vals['D'])
+	quest += 'Do you want to mark these values as useful? Press \'U\'. Otherwise, press \'n\'\nTo exit type "exit"\n'
+	useful = raw_input(quest)
+	u = ""
+	if useful in ["u", "U", "USE", "use", "Use","y","Y","yes","YES"]:
+		print "Items will be used! On to the next graph."
+		u = "keep"
+	elif useful in ["n", "N", "No", "no", "NO"]:
+		u = "discard"
+		print "These items will not be used! On to the next graph."
+	elif useful == "exit":
+		#user terminated program
+		writer.shutdown()
+		exit(0)
+	else:
+		print "Your input was not recognised."
+		return saveValues(pp, list1, list2, vals)
+
+	writer.writeRow(pp, list1, list2, vals, u)
+
+if __name__ == "__main__":
+	if len(sys.argv) > 1:
+		selectedFile = sys.argv[1]
+	else:
+		selectedFile = selectFile()
+
+	data = readfile(selectedFile)
+	sortKeys = sorted(data.keys())
+
+	writer = valuesWriter()
+	
+	fig1 = plt.figure()
+	fig1.show()
+	plt.ion()
+	for i in range(len(sortKeys)):
+		plot(data, sortKeys, i, fig1)
+	writer.shutdown()
+
+	
