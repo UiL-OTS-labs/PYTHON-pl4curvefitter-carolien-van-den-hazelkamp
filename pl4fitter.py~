@@ -169,6 +169,7 @@ def saveValues(pp, list1, list2, vals):
 		print "Your input was not recognised."
 		return saveValues(pp, list1, list2, vals)
 
+	print list2
 	writer.writeRow(pp, list1, list2, vals, u)
 
 if __name__ == "__main__":
