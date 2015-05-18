@@ -13,7 +13,7 @@ The script relies on python and several libraries. Likely libraries and the depe
 
 # Usage
  `python pl4fitter.py arg1`
-Where arg1 is an optional CSV filename (e.g. *exampledata.csv*)
+Where arg1 is an optional CSV filename (See *exampledata.csv* for the format of the input document)
 
 # Authors
 Internals are inspired by 
