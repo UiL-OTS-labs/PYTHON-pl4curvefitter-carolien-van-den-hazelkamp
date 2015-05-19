@@ -114,6 +114,8 @@ def residuals(p, y, x):
 			err = list(p)
 			for i in range(len(p)):
 				err[i] = 1e8
+	if B<0:
+		err = 1e8
 	return err
 
 def peval(x, p):
